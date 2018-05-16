@@ -1,5 +1,0 @@
-var config = {
-	channels: ["#fishmongers","#grobyk"],
-	server: "irc.esper.net",
-	botName: "pantsman"
-};
