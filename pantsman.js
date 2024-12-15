@@ -13,7 +13,7 @@ bot.addListener('message', function (from, to, message) {
 });
 
 bot.addListener('message', function(from, to, text, message) {
-	bot.say(config.channels[0], "wat");
+	bot.say(config.channels[0] == 'pantsman', "wat");
 });
 
 bot.addListener('error', function(message) {
