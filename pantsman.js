@@ -1,3 +1,5 @@
+// This part is from davidwash.name/nodejs-irc
+
 var irc = require('irc');
 var config = require('config');
 var markov = require('./markov');
