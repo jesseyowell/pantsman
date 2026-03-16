@@ -28,7 +28,7 @@ bot.addListener('message', function(from, to, message, raw) {
     }
 });
 
-bot.addListener('nick', function(message, to, from) {
+bot.addListener('nick', function(oldnick, newnick, channels, message) {
     bot.say(config.channels[0], "wat");
 });
 
