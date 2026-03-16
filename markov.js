@@ -31,11 +31,13 @@ function load(filePath) {
     var resolved = path.resolve(__dirname, filePath);
     try {
         var data = fs.readFileSync(resolved, 'utf8');
-        chain = JSON.parse(data);
+        var loaded = JSON.parse(data);
+        Object.keys(chain).forEach(function(k) { delete chain[k]; });
+        Object.assign(chain, loaded);
     } catch (e) {
         if (e.code === 'ENOENT' || e instanceof SyntaxError) {
             console.log('markov: warning: could not load corpus (' + e.message + '), starting fresh');
-            chain = {};
+            Object.keys(chain).forEach(function(k) { delete chain[k]; });
         } else {
             throw e;
         }
