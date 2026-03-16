@@ -1,5 +1,8 @@
 {
-  "botName":"pantsman",
+  "botName": "pantsman",
   "server": "irc.esper.net",
-  "channels":["#selectbutton"]
+  "channels": ["#selectbutton"],
+  "replyChance": 0.05,
+  "corpusFile": "./corpus.json",
+  "maxWords": 30
 }
