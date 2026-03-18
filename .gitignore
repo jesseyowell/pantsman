@@ -62,3 +62,6 @@ typings/
 
 # git worktrees
 .worktrees/
+
+# markov corpus (runtime data)
+corpus.json
