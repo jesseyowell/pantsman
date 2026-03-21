@@ -16,6 +16,7 @@ bot.addListener('message', function(from, to, message, raw) {
     // ignore our own messages
     if (from.toLowerCase() === config.botName.toLowerCase()) return;
 
+    console.log('[' + to + '] <' + from + '> ' + message);
     markov.train(message);
 
     var reply = null;
@@ -26,6 +27,7 @@ bot.addListener('message', function(from, to, message, raw) {
     }
 
     if (reply !== null) {
+        console.log('[' + to + '] <' + config.botName + '> ' + reply);
         bot.say(to, reply);
     }
 });
