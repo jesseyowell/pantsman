@@ -4,5 +4,7 @@
   "channels": ["#selectbutton"],
   "replyChance": 0.05,
   "corpusFile": "./corpus.json",
-  "maxWords": 30
+  "maxWords": 30,
+  "polishRate": 0.5,
+  "polishModel": "claude-haiku-4-5"
 }

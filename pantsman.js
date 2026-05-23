@@ -3,6 +3,7 @@
 var irc = require('irc');
 var config = require('config');
 var markov = require('./markov');
+var polish = require('./polish');
 
 markov.load(config.corpusFile);
 
@@ -27,8 +28,16 @@ bot.addListener('message', function(from, to, message, raw) {
     }
 
     if (reply !== null) {
-        console.log('[' + to + '] <' + config.botName + '> ' + reply);
-        bot.say(to, reply);
+        if (Math.random() < config.polishRate) {
+            polish.polish(reply).then(function(polished) {
+                var out = polished || reply;
+                console.log('[' + to + '] <' + config.botName + '> ' + out);
+                bot.say(to, out);
+            });
+        } else {
+            console.log('[' + to + '] <' + config.botName + '> ' + reply);
+            bot.say(to, reply);
+        }
     }
 });
 
