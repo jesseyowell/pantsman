@@ -4,5 +4,6 @@
   "channels": ["#selectbutton"],
   "replyChance": 0.05,
   "corpusFile": "./corpus.json",
-  "maxWords": 30
+  "maxWords": 30,
+  "apiPort": 3000
 }

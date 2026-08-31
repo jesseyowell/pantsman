@@ -1,0 +1,19 @@
+// Standalone API server — runs the HTTP API without connecting to IRC.
+
+var config = require('config');
+var markov = require('./markov');
+var api = require('./api');
+
+markov.load(config.corpusFile);
+
+api.listen(config.apiPort, function() {
+    console.log('api listening on port ' + config.apiPort);
+});
+
+function shutdown() {
+    markov.save(config.corpusFile);
+    process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

@@ -3,8 +3,13 @@
 var irc = require('irc');
 var config = require('config');
 var markov = require('./markov');
+var api = require('./api');
 
 markov.load(config.corpusFile);
+
+var apiServer = api.listen(config.apiPort, function() {
+    console.log('api listening on port ' + config.apiPort);
+});
 
 var bot = new irc.Client(config.server, config.botName, {
     channels: config.channels

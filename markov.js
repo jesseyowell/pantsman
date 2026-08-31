@@ -27,6 +27,13 @@ function generate(maxWords) {
     return result.join(' ');
 }
 
+function stats() {
+    var words = Object.keys(chain);
+    var transitions = 0;
+    words.forEach(function(w) { transitions += chain[w].length; });
+    return { words: words.length, transitions: transitions };
+}
+
 function load(filePath) {
     var resolved = path.resolve(__dirname, filePath);
     try {
@@ -53,4 +60,4 @@ function save(filePath) {
     }
 }
 
-module.exports = { train: train, generate: generate, load: load, save: save };
+module.exports = { train: train, generate: generate, load: load, save: save, stats: stats };

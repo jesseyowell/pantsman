@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "apis": [
+    {
+      "name": "pantsman",
+      "projectId": "1f940be1-dbac-45bc-9eb6-bccaa0045130",
+      "rootDir": ".",
+      "oasFile": ".restless/openapi.json",
+      "oasSource": {
+        "kind": "agent"
+      },
+      "requestIdPrefix": "PNT",
+      "lastSyncedAt": "2026-08-31T22:20:48.409Z",
+      "id": "da6c9a89-6646-4f2f-9d33-05c5939b04b7"
+    }
+  ]
+}

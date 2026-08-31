@@ -1,0 +1,156 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "pantsman",
+    "description": "HTTP API for the pantsman Markov chainer bot. Generate nonsense sentences from the bot's corpus, feed it new text to learn from, and inspect the size of its Markov chain.",
+    "version": "1.0.0",
+    "license": {
+      "name": "ISC"
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/generate": {
+      "get": {
+        "operationId": "generate",
+        "summary": "Generate a sentence",
+        "description": "Generates a sentence by walking the Markov chain from a random starting word. Returns up to maxWords words; the walk may end early if it reaches a word with no known followers.",
+        "parameters": [
+          {
+            "name": "maxWords",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of words in the generated sentence. Defaults to the server's configured limit (30).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A generated sentence.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["text"],
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "description": "The generated sentence.",
+                      "example": "the quick brown fox jumps over the lazy dog"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The corpus is empty, so nothing can be generated yet. Train the bot first via POST /train.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/train": {
+      "post": {
+        "operationId": "train",
+        "summary": "Train the bot on new text",
+        "description": "Feeds a piece of text into the Markov chain. Each adjacent word pair in the text is recorded as a possible transition. Training takes effect immediately for subsequent /generate calls.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["text"],
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The text to learn from. Split on whitespace; punctuation is kept as part of words.",
+                    "example": "the quick brown fox jumps over the lazy dog"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The text was ingested into the chain."
+          },
+          "400": {
+            "description": "The request body is missing a non-empty text field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stats": {
+      "get": {
+        "operationId": "stats",
+        "summary": "Get corpus statistics",
+        "description": "Reports the current size of the Markov chain: how many distinct words it knows and how many word-to-word transitions it has recorded.",
+        "responses": {
+          "200": {
+            "description": "Current chain statistics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["words", "transitions"],
+                  "properties": {
+                    "words": {
+                      "type": "integer",
+                      "description": "Number of distinct words in the chain.",
+                      "example": 7
+                    },
+                    "transitions": {
+                      "type": "integer",
+                      "description": "Total number of recorded word-to-word transitions.",
+                      "example": 8
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message.",
+            "example": "corpus is empty"
+          }
+        }
+      }
+    }
+  }
+}
