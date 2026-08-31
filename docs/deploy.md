@@ -2,8 +2,9 @@
 
 How to run the pantsman IRC bot and its HTTP API on a Linode (or any Linux
 VPS). Written to be worked through top-to-bottom on a fresh box; a later
-section covers security hardening, which is **not optional** here because
-the API has no authentication.
+section covers security hardening. The API binds to localhost by default and
+`POST /train` can be gated behind a bearer token, but read that section
+before exposing anything.
 
 ## What runs
 
@@ -20,7 +21,8 @@ Config lives in `config/default.json`:
 - `server` / `channels` / `botName` — IRC connection (`irc.esper.net`, `#selectbutton`)
 - `replyChance` — probability the bot replies to a channel message
 - `corpusFile` — `./corpus.json`, the Markov chain's learned data
-- `apiPort` — `3000`
+- `apiPort` / `apiHost` — `3000` / `127.0.0.1`. The API is localhost-only
+  unless you change `apiHost` (see Security below before you do)
 
 ## Prerequisites on the server
 
@@ -35,8 +37,12 @@ Config lives in `config/default.json`:
 Two files are deliberately kept out of git and must be copied to the server
 by hand (e.g. `scp` from the machine that has them):
 
-- **`.env`** — secrets, currently `RESTLESS_KEY` for the `@restlessai/sdk`
-  request logging. Without it the SDK gets an undefined key.
+- **`.env`** — secrets:
+  - `RESTLESS_KEY` — for the `@restlessai/sdk` request logging. Without it
+    the SDK gets an undefined key.
+  - `API_TOKEN` (optional) — when set, `POST /train` requires
+    `Authorization: Bearer <token>`. Unset means /train is open — fine for
+    the localhost-only default, mandatory before exposing the API.
 - **`corpus.json`** — the bot's learned corpus (runtime data, gitignored).
   Without it the bot starts with an empty brain and `/generate` returns 503
   until it learns from channel chatter or `/train` calls.
@@ -55,44 +61,100 @@ npm ci
 npm test          # sanity check before wiring up systemd
 ```
 
-## Security — do this before first start
+## Security
 
-The HTTP API has **no auth**. `POST /train` accepts arbitrary text into the
-corpus, so anyone who can reach port 3000 can poison what the bot says.
-Express binds to all interfaces by default, which on a VPS means the whole
-internet. Pick one:
+`POST /train` accepts arbitrary text into the corpus, so anyone who can
+reach it can poison what the bot says. Two layers of defense are built in:
 
-### Option A (simplest): firewall port 3000
+1. **Localhost bind (default).** `apiHost` in `config/default.json` is
+   `127.0.0.1` (loopback — exists on every box, nothing Linode-specific to
+   configure), so the API is unreachable from off the box out of the box.
+   Only local processes or SSH tunnels (`ssh -L 3000:localhost:3000`) can
+   reach it. Outbound connections (IRC) are unaffected by the bind.
+2. **Bearer token on `/train` (opt-in).** Set `API_TOKEN=<long random
+   string>` in `.env` (`openssl rand -hex 32` is fine) and `POST /train`
+   returns 401 without `Authorization: Bearer <token>`. The read-only
+   routes (`/generate`, `/stats`) stay open.
 
-With ufw:
+### Firewall anyway (defense in depth)
+
+Even with the localhost bind, close everything but SSH so a future config
+change can't silently expose the port. ufw and Linode Cloud Firewall don't
+conflict — use either or both (Cloud Firewall filters before traffic
+reaches the VM; ufw filters on the box).
+
+With ufw — allow SSH **before** enabling, and keep your current session
+open until a fresh connection is verified:
 
 ```sh
-ufw allow OpenSSH
-ufw enable          # port 3000 stays closed by default
-ufw status
+sudo apt install ufw            # Debian minimal images don't ship it
+sudo ufw default deny incoming
+sudo ufw default allow outgoing # IRC (outbound 6667/6697) keeps working
+sudo ufw allow OpenSSH          # BEFORE enable, or you cut yourself off
+sudo ufw enable
+sudo ufw status verbose
 ```
 
-Or use a Linode Cloud Firewall (Linode dashboard → Firewalls) allowing only
-SSH inbound. Verify from an outside machine that
-`curl http://<linode-ip>:3000/stats` times out.
+Then from a **second** terminal confirm SSH still works before closing the
+first. `ufw enable` covers IPv6 automatically.
 
-### Option B: bind the API to localhost
+With Linode Cloud Firewall: Cloud Manager → Firewalls → Create Firewall →
+assign the Linode → default inbound policy **Drop**, outbound **Accept** →
+inbound rules:
 
-In `api-server.js` (and the `api.listen` call in `pantsman.js` if present),
-bind explicitly:
+| rule | protocol | ports | sources |
+| ---- | -------- | ----- | ------- |
+| SSH | TCP | 22 | `0.0.0.0/0` and `::/0` |
+| mosh (if you use it) | UDP | 60000-61000 | `0.0.0.0/0` and `::/0` |
 
-```js
-api.listen(config.apiPort, '127.0.0.1', function() { ... });
-```
+Gotchas:
 
-Then only processes on the box (or SSH tunnels: `ssh -L 3000:localhost:3000`)
-can reach it.
+- Rules do **not** apply until you click **Save Changes** at the bottom of
+  the Rules tab — added rules sit pending (yellow banner) until then. With
+  default-Drop and the SSH rule unsaved, you've blocked everything.
+- mosh handshakes over TCP 22 but runs its session over UDP; without the
+  UDP rule, `mosh` hangs and *existing* mosh sessions freeze silently.
+- Restricting the SSH source to your own IP is tighter, but a rotated home
+  IP then means fixing it via Lish.
 
-### Option C: the API should be public
+Verify from an outside machine that `ssh` still works and
+`curl -m 5 http://<linode-ip>:3000/stats` times out.
 
-Put nginx in front as a reverse proxy with TLS, add rate limiting, and gate
-`POST /train` behind some form of auth (even a static bearer token checked in
-middleware). Do not expose the bare Express server.
+### Linode-specific notes
+
+- **Fresh Linodes have no firewall at all.** Unlike AWS security groups
+  (default-closed), every port a process listens on is internet-reachable
+  the moment the Linode boots. The localhost bind is the only thing
+  protecting the API between first `npm start` and firewall setup — do the
+  firewall step early anyway.
+- **The optional "private" IPv4 (192.168.x) is not private.** It's a shared
+  LAN with other Linode customers in the same datacenter. Never set
+  `apiHost` to it thinking it's internal-only; Linode VLANs are the
+  actually-private option.
+- **IPv6 is enabled by default** and the Linode gets a public v6 address.
+  `ufw enable` covers v6 automatically, but Linode Cloud Firewall rules
+  must be written to cover both v4 and v6 — an allow-SSH-only v4 ruleset
+  with v6 unrestricted is a common hole.
+- **Locked out by the firewall?** The Lish console (Linode dashboard →
+  Launch LISH Console) is out-of-band shell access that doesn't go through
+  SSH or the network rules.
+- **Lost the root password?** Cloud Manager → the Linode → Settings →
+  Reset Root Password (requires powering the Linode off first). Note the
+  Cloud Firewall needs no shell access at all, and `sudo` asks for your
+  own user's password, not root's — so a lost root password blocks less
+  than it seems. Once back in as root, `usermod -aG sudo <user>` so you
+  don't need root again.
+
+### If the API should be public
+
+Do **all** of the following, not just one:
+
+1. Set `API_TOKEN` in `.env` — never expose an open `/train`.
+2. Keep `apiHost` at `127.0.0.1` and put nginx in front as a reverse proxy
+   with TLS and rate limiting. Do not expose the bare Express server; don't
+   set `apiHost` to `0.0.0.0` — let nginx be the only thing listening
+   publicly.
+3. Open only 80/443 in the firewall.
 
 Also standard VPS hygiene: disable SSH password auth (keys only), keep
 `unattended-upgrades` on, and don't run the bot as root — a dedicated user or
@@ -115,6 +177,11 @@ WorkingDirectory=/home/YOUR_USER/pantsman
 ExecStart=/usr/bin/node --env-file-if-exists=.env pantsman.js
 Restart=on-failure
 RestartSec=10
+
+# cheap sandboxing — none of these interfere with writing corpus.json
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
@@ -179,10 +246,23 @@ is clean; `kill -9` is not.
 
 ```sh
 systemctl status pantsman                     # active (running)
-journalctl -u pantsman -n 20                  # joined channel, api listening
+journalctl -u pantsman -n 20                  # joined channel, api listening on 127.0.0.1
 curl localhost:3000/stats                     # corpus stats from the box itself
 curl localhost:3000/generate                  # {"text": "..."}
 ```
 
-And from an **outside** machine, confirm port 3000 is NOT reachable (unless
-you chose Option C).
+(The bind is v4 loopback only; `localhost` may resolve to `::1` first. curl
+falls back on its own, but if a local connection ever inexplicably fails,
+try `curl 127.0.0.1:3000` before assuming the service is down.)
+
+If you set `API_TOKEN`, confirm the gate works from the box:
+
+```sh
+curl -i -X POST localhost:3000/train \
+  -H 'Content-Type: application/json' -d '{"text":"test"}'   # 401
+curl -i -X POST localhost:3000/train \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"text":"test"}'   # 204
+```
+
+And from an **outside** machine, confirm port 3000 is NOT reachable.

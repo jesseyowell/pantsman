@@ -6,8 +6,8 @@ var api = require('./api');
 
 markov.load(config.corpusFile);
 
-api.listen(config.apiPort, function() {
-    console.log('api listening on port ' + config.apiPort);
+api.listen(config.apiPort, config.apiHost, function() {
+    console.log('api listening on ' + config.apiHost + ':' + config.apiPort);
 });
 
 function shutdown() {

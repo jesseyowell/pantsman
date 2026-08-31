@@ -59,6 +59,38 @@ test('GET /generate?maxWords=1 returns a single word', async function () {
     assert.strictEqual(body.text.split(' ').length, 1);
 });
 
+test('POST /train requires the token when API_TOKEN is set', async function (t) {
+    process.env.API_TOKEN = 'sekrit';
+    t.after(function () { delete process.env.API_TOKEN; });
+
+    var res = await fetch(base + '/train', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: 'hello world' })
+    });
+    assert.strictEqual(res.status, 401);
+
+    res = await fetch(base + '/train', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer wrong'
+        },
+        body: JSON.stringify({ text: 'hello world' })
+    });
+    assert.strictEqual(res.status, 401);
+
+    res = await fetch(base + '/train', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer sekrit'
+        },
+        body: JSON.stringify({ text: 'hello world' })
+    });
+    assert.strictEqual(res.status, 204);
+});
+
 test('GET /stats reports words and transitions', async function () {
     var res = await fetch(base + '/stats');
     assert.strictEqual(res.status, 200);

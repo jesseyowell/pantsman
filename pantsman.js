@@ -7,8 +7,8 @@ var api = require('./api');
 
 markov.load(config.corpusFile);
 
-var apiServer = api.listen(config.apiPort, function() {
-    console.log('api listening on port ' + config.apiPort);
+var apiServer = api.listen(config.apiPort, config.apiHost, function() {
+    console.log('api listening on ' + config.apiHost + ':' + config.apiPort);
 });
 
 var bot = new irc.Client(config.server, config.botName, {
