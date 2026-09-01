@@ -6,6 +6,11 @@ var server;
 var base;
 
 test.before(function (t, done) {
+    // Requiring ../api pulls in the restless SDK, which loads .env into
+    // process.env — so a developer's API_TOKEN would gate /train for every
+    // test. The test that exercises the gate sets the token itself.
+    delete process.env.API_TOKEN;
+
     server = app.listen(0, function () {
         base = 'http://127.0.0.1:' + server.address().port;
         done();

@@ -51,6 +51,13 @@ by hand (e.g. `scp` from the machine that has them):
 scp .env corpus.json user@your-linode:~/pantsman/
 ```
 
+No `corpus.json` anywhere yet? `ingest-bluesky.js` seeds one from a BlueSky
+account's recent posts, writing `corpus.json` in the repo root:
+
+```sh
+node ingest-bluesky.js [handle] [days]   # defaults: jav.scd.lol, 21
+```
+
 ## Install
 
 ```sh
@@ -189,12 +196,23 @@ WantedBy=multi-user.target
 
 Notes:
 
-- **`WorkingDirectory` is load-bearing.** Both the `config` package and the
-  `./corpus.json` path resolve relative to the cwd; the process must start
-  from the repo root.
+- **`WorkingDirectory` is load-bearing, and getting it wrong fails
+  silently.** The `config` package resolves `config/` against the cwd and
+  returns `undefined` for every key instead of throwing when it finds
+  nothing. The service then calls `listen(undefined, undefined)`, which
+  binds a *random* port on *all* interfaces — the localhost bind is gone,
+  and nothing in the log says so. `--env-file-if-exists=.env` is cwd-relative
+  too. Start from the repo root. (`corpus.json` is the exception:
+  `markov.js` resolves it against its own directory, so it lands in the repo
+  no matter where the process started.)
 - Check `which node` — nvm installs put node somewhere like
   `~/.nvm/versions/node/v22.x.x/bin/node`, not `/usr/bin/node`. Use the real
   path in `ExecStart`.
+- **The restless SDK also loads `.env` by itself**, walking up from the cwd
+  until it finds one, unless `RESTLESS_KEY` is already in the environment.
+  With the correct `WorkingDirectory` that is the repo's `.env` and matches
+  what `--env-file-if-exists` already did; with the wrong one it can silently
+  pick up a stray `~/.env` or `/.env` instead.
 - systemd stops the service with SIGTERM, which the code handles by saving
   the corpus before exiting. Don't change `KillSignal`.
 - `Restart=on-failure` also acts as the IRC reconnect: if the server drops
@@ -210,8 +228,16 @@ sudo systemctl enable --now pantsman
 journalctl -u pantsman -f      # stdout logging (incoming msgs, bot replies) lands here
 ```
 
-For the API-only service, duplicate the unit with
-`ExecStart=... api-server.js` and a different name.
+`pantsman.js` already serves the HTTP API, so a separate `api-server.js`
+unit is only worth running if you want the API *without* an IRC connection.
+Do not run both as-is: they read the same `apiPort` and the second to start
+dies with `EADDRINUSE`. If you really need both, give the API-only unit its
+own port before duplicating the unit under a different name:
+
+```ini
+Environment=NODE_CONFIG={"apiPort":3001}
+ExecStart=/usr/bin/node --env-file-if-exists=.env api-server.js
+```
 
 ## Back up corpus.json
 

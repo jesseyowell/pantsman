@@ -65,3 +65,8 @@ typings/
 
 # markov corpus (runtime data)
 corpus.json
+
+# vim swap files
+*.swp
+*.swo
+*~
