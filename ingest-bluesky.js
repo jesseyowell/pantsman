@@ -1,13 +1,21 @@
 // Fetches recent original posts from a BlueSky user and trains the markov corpus.
-// Usage: node ingest-bluesky.js [handle] [days]
-// Defaults: handle=jav.scd.lol, days=21
+// Usage: node ingest-bluesky.js <handle> [days]
+// Default: days=21
+//
+// The handle is required on purpose: whatever it posts is what the bot will
+// say in the channel, so there is no default worth guessing.
 
 var config = require('config');
 var markov = require('./markov');
 
-var HANDLE = process.argv[2] || 'jav.scd.lol';
+var HANDLE = process.argv[2];
 var DAYS = parseInt(process.argv[3], 10) || 21;
 var API = 'https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed';
+
+if (!HANDLE) {
+    console.error('usage: node ingest-bluesky.js <handle> [days]');
+    process.exit(1);
+}
 
 async function fetchPage(cursor) {
     var url = new URL(API);

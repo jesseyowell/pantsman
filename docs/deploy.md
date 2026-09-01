@@ -55,8 +55,14 @@ No `corpus.json` anywhere yet? `ingest-bluesky.js` seeds one from a BlueSky
 account's recent posts, writing `corpus.json` in the repo root:
 
 ```sh
-node ingest-bluesky.js [handle] [days]   # defaults: jav.scd.lol, 21
+node ingest-bluesky.js <handle> [days]   # days defaults to 21
 ```
+
+The handle is required — whatever account you point it at is what the bot
+will repeat in the channel, so pick deliberately. The script also *adds to*
+whatever corpus already exists rather than replacing it: it loads
+`corpus.json` before training and saves the merged result. To re-seed from a
+different account cleanly, delete `corpus.json` first.
 
 ## Install
 

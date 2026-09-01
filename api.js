@@ -2,7 +2,12 @@ var crypto = require('crypto');
 var express = require('express');
 var config = require('config');
 var markov = require('./markov');
-var sdk = require('@restlessai/sdk')(process.env.RESTLESS_KEY);
+// Redact `text` from captured bodies: it carries the Markov corpus, in both
+// the /generate response and the /train request. Restless gets the traffic
+// shape, not what the bot says.
+var sdk = require('@restlessai/sdk')(process.env.RESTLESS_KEY, {
+    redact: { bodyKeys: ['text'] }
+});
 
 var app = express();
 app.disable('x-powered-by');
