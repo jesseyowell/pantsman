@@ -190,6 +190,19 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now pantsman
 ```
 
+**Ownership:** install the unit as root and leave it `root:root`. `User=` in
+the unit is what decides which account the process runs as — file ownership
+has nothing to do with it, and a unit file writable by a non-root user is a
+hole, not a convenience. Everything *under the repo*, though, must stay owned
+by that `User=`. `corpus.json` matters most: `markov.save()` catches write
+errors and only logs them, so a root-owned corpus lets the bot run and look
+perfectly healthy while silently discarding its brain on every shutdown. If
+you ever run the bot, `git pull`, or `npm ci` as root by accident:
+
+```sh
+sudo chown -R jyowell:jyowell ~/pantsman
+```
+
 For reference, or to adapt for another box, that unit is:
 
 ```ini
@@ -277,8 +290,13 @@ The corpus is the one thing that is neither in git nor recreatable, and a
 hard crash (OOM, kill -9) skips the save-on-shutdown path. A daily cron copy
 is cheap insurance:
 
+Create the directory first — cron won't, and `cp` failing in a cron job is
+close to invisible. Do this as the service user, not root, or the job can't
+write to it:
+
 ```sh
-crontab -e
+mkdir -p ~/backups
+crontab -e          # as jyowell, not via sudo — root has its own crontab
 # daily at 04:00, keep dated copies
 0 4 * * * cp ~/pantsman/corpus.json ~/backups/corpus-$(date +\%F).json
 ```
@@ -292,10 +310,13 @@ Develop locally, commit, push, then on the Linode:
 
 ```sh
 cd ~/pantsman
-git pull
+git pull                    # as jyowell — as root this leaves root-owned files
 npm ci                      # only needed if package.json changed
 sudo systemctl restart pantsman
 ```
+
+Only the last line needs root. Run the `git` and `npm` steps as the service
+user so nothing in the working tree changes hands.
 
 Remember the corpus only saves on clean shutdown — `systemctl restart` (SIGTERM)
 is clean; `kill -9` is not.
