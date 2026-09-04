@@ -1,0 +1,113 @@
+openapi: 3.1.0
+info:
+  title: pantsman API
+  description: HTTP API for the pantsman Markov chainer bot.
+  version: 1.0.0
+  license:
+    name: ISC
+    identifier: ISC
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local (default bind is localhost — see docs/deploy.md)
+paths:
+  /generate:
+    get:
+      summary: Generate text from the Markov chain
+      operationId: generate
+      security: []
+      parameters:
+        - name: maxWords
+          in: query
+          description: Maximum number of words to generate. Defaults to the configured maxWords (30).
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Generated text
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [text]
+                properties:
+                  text:
+                    type: string
+                    examples: ['the quick brown fox']
+        '503':
+          description: The corpus is empty, nothing to generate from
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /train:
+    post:
+      summary: Add text to the Markov corpus
+      operationId: train
+      security:
+        - bearerAuth: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                  minLength: 1
+                  description: Text to train on. Request bodies are limited to 64kb.
+      responses:
+        '204':
+          description: Text accepted into the corpus
+        '400':
+          description: Missing or empty text
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid or missing bearer token (only when API_TOKEN is configured)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /stats:
+    get:
+      summary: Corpus statistics
+      operationId: stats
+      security: []
+      responses:
+        '200':
+          description: Current chain size
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [words, transitions]
+                properties:
+                  words:
+                    type: integer
+                    description: Number of distinct words in the chain
+                  transitions:
+                    type: integer
+                    description: Total number of word transitions
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        Required only when the API_TOKEN environment variable is set on the
+        server; otherwise /train is open (the server binds to localhost by
+        default).
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
