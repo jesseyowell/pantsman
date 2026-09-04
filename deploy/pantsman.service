@@ -1,0 +1,30 @@
+# Ready to install on the deployment box:
+#   sudo cp deploy/pantsman.service /etc/systemd/system/pantsman.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pantsman
+#
+# Paths below are real, not placeholders. If node moves (nvm upgrade), fix
+# ExecStart — `which node` on the box gives the current path.
+
+[Unit]
+Description=pantsman IRC bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=jyowell
+WorkingDirectory=/home/jyowell/pantsman
+ExecStart=/home/jyowell/.nvm/versions/node/v24.14.0/bin/node --env-file-if-exists=.env pantsman.js
+Restart=on-failure
+
+# 60s, not the usual few seconds: restarting faster than the IRC server reaps
+# our old connection means `pantsman` is still held and we come back as
+# pantsman1. Matches reconnectDelayMs in config/default.json.
+RestartSec=60
+
+# cheap sandboxing — none of these interfere with writing corpus.json
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

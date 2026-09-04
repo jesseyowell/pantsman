@@ -5,6 +5,7 @@
   "replyChance": 0.05,
   "corpusFile": "./corpus.json",
   "maxWords": 30,
+  "reconnectDelayMs": 60000,
   "apiPort": 3000,
   "apiHost": "127.0.0.1"
 }

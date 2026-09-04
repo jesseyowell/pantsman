@@ -23,6 +23,8 @@ Config lives in `config/default.json`:
 - `corpusFile` — `./corpus.json`, the Markov chain's learned data
 - `apiPort` / `apiHost` — `3000` / `127.0.0.1`. The API is localhost-only
   unless you change `apiHost` (see Security below before you do)
+- `reconnectDelayMs` — `60000`. How long to wait before reconnecting to IRC
+  after a dropped connection (see the systemd notes for why it is this long)
 
 ## Prerequisites on the server
 
@@ -175,8 +177,20 @@ your login user is fine.
 
 ## Run it with systemd
 
-Running `npm start` in an SSH session dies when the session drops. Use a
-systemd unit instead. `/etc/systemd/system/pantsman.service`:
+Running `npm start` in an SSH session dies when the session drops — closing
+the terminal sends SIGHUP, and while the bot now saves its corpus on that
+signal, nothing restarts it. Use a systemd unit instead.
+
+`deploy/pantsman.service` in this repo is ready to install as-is (real user
+and node paths, not placeholders):
+
+```sh
+sudo cp deploy/pantsman.service /etc/systemd/system/pantsman.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now pantsman
+```
+
+For reference, or to adapt for another box, that unit is:
 
 ```ini
 [Unit]
@@ -189,7 +203,9 @@ User=YOUR_USER
 WorkingDirectory=/home/YOUR_USER/pantsman
 ExecStart=/usr/bin/node --env-file-if-exists=.env pantsman.js
 Restart=on-failure
-RestartSec=10
+
+# 60s, not the usual few seconds — see the nick-collision note below
+RestartSec=60
 
 # cheap sandboxing — none of these interfere with writing corpus.json
 NoNewPrivileges=true
@@ -220,11 +236,21 @@ Notes:
   what `--env-file-if-exists` already did; with the wrong one it can silently
   pick up a stray `~/.env` or `/.env` instead.
 - systemd stops the service with SIGTERM, which the code handles by saving
-  the corpus before exiting. Don't change `KillSignal`.
+  the corpus before exiting. Don't change `KillSignal`. SIGINT and SIGHUP
+  save too, so Ctrl-C and a closing terminal are both safe; `kill -9` is
+  not, and neither is an OOM kill.
 - `Restart=on-failure` also acts as the IRC reconnect: if the server drops
   the connection and the process exits, systemd restarts it. If the `irc`
   library ever hangs silently instead of exiting, systemd won't notice —
   watch for that the first week.
+- **Both reconnect delays are 60s on purpose.** Reconnecting sooner than the
+  IRC server reaps the dead connection means `pantsman` is still held, and
+  node-irc responds to `err_nicknameinuse` by quietly renaming itself
+  `pantsman1`, then `pantsman2`. Two layers control this and should stay in
+  agreement: `reconnectDelayMs` in `config/default.json` (the library
+  retrying inside a live process — its own default is a far too eager 2s)
+  and `RestartSec` here (systemd restarting a process that exited). Lower
+  either one and the bot starts collecting numbered aliases.
 
 Enable and watch:
 

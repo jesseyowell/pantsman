@@ -12,7 +12,11 @@ var apiServer = api.listen(config.apiPort, config.apiHost, function() {
 });
 
 var bot = new irc.Client(config.server, config.botName, {
-    channels: config.channels
+    channels: config.channels,
+    // node-irc's 2s default reconnects before the server has reaped our old
+    // connection, so `botName` is still held and it renames us to pantsman1
+    // (see err_nicknameinuse in irc/lib/irc.js). Wait for the ghost to drop.
+    retryDelay: config.reconnectDelayMs
 });
 
 bot.addListener('message', function(from, to, message, raw) {
@@ -52,3 +56,6 @@ function shutdown() {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+// Closing the terminal sends SIGHUP, whose default action would terminate us
+// without ever running shutdown — losing every message learned since start.
+process.on('SIGHUP', shutdown);
